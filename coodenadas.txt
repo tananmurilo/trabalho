@@ -1,0 +1,17 @@
+bola
+hmin 139
+hmax 244
+smin 96
+smax 256
+vmin 000
+vmax 256
+
+
+cesta
+
+hmin 83
+hmax 250
+smin 15
+smax 134
+vmin 41
+vmax 256
