@@ -1,22 +1,3 @@
-//objectTrackingTutorial.cpp
-
-//Written by  Kyle Hounslow 2013
-
-//Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software")
-//, to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
-//and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-//The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-//FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-//LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-//IN THE SOFTWARE.
-
-
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <stdlib.h>     /* qsort */
 
 #include <sstream>
 #include <string>
@@ -24,11 +5,9 @@
 #include <opencv\highgui.h>
 #include <opencv\cv.h>
 
-using namespace std;
-
 using namespace cv;
-//initial min and max HSV filter values.
-//these will be changed using trackbars
+using namespace std;
+//valores do hsv pra calibrar/selcionar os objetos com determinada cor
 int H_MIN = 0;
 int H_MAX = 256;
 int S_MIN = 0;
@@ -40,22 +19,25 @@ const int FRAME_WIDTH = 640;
 const int FRAME_HEIGHT = 480;
 //max number of objects to be detected in frame
 const int MAX_NUM_OBJECTS=50;
+int pontos = 0;
+int xBola = 0;
+int yBola = 0;
+int xCesta = 0;
+int yCesta = 0;
+bool contador = false;
+
 //minimum and maximum object area
 const int MIN_OBJECT_AREA = 20*20;
-const int MAX_OBJECT_AREA = FRAME_HEIGHT*FRAME_WIDTH/2;
-//names that will appear at the top of each window
+const int MAX_OBJECT_AREA = FRAME_HEIGHT*FRAME_WIDTH/1.5;
+//nome das janelas
 const string windowName = "Original Image";
 const string windowName1 = "HSV Image";
 const string windowName2 = "Thresholded Image";
 const string windowName3 = "After Morphological Operations";
+const string windowName4 = "Imagem original";
 const string trackbarWindowName = "Trackbars";
 void on_trackbar( int, void* )
-{//This function gets called whenever a
-    // trackbar position is changed
-
-
-
-
+{
 
 }
 string intToString(int number){
@@ -66,11 +48,11 @@ string intToString(int number){
     return ss.str();
 }
 void createTrackbars(){
-    //create window for trackbars
+    //criar as trackbars pra poder detectar os objetos na calibration
 
 
     namedWindow(trackbarWindowName,0);
-    //create memory to store trackbar name on window
+
     char TrackbarName[50];
     sprintf( TrackbarName, "H_MIN", H_MIN);
     sprintf( TrackbarName, "H_MAX", H_MAX);
@@ -78,11 +60,8 @@ void createTrackbars(){
     sprintf( TrackbarName, "S_MAX", S_MAX);
     sprintf( TrackbarName, "V_MIN", V_MIN);
     sprintf( TrackbarName, "V_MAX", V_MAX);
-    //create trackbars and insert them into window
-    //3 parameters are: the address of the variable that is changing when the trackbar is moved(eg.H_LOW),
-    //the max value the trackbar can move (eg. H_HIGH),
-    //and the function that is called whenever the trackbar is moved(eg. on_trackbar)
-    //                                  ---->    ---->     ---->
+
+
     createTrackbar( "H_MIN", trackbarWindowName, &H_MIN, H_MAX, on_trackbar );
     createTrackbar( "H_MAX", trackbarWindowName, &H_MAX, H_MAX, on_trackbar );
     createTrackbar( "S_MIN", trackbarWindowName, &S_MIN, S_MAX, on_trackbar );
@@ -92,14 +71,10 @@ void createTrackbars(){
 
 
 }
-void drawObject(int x, int y,Mat &frame){
+//desenhar as formas na imagem
+void drawObject(int x, int y,Mat &frame, int tipo){
 
-    //use some of the openCV drawing functions to draw crosshairs
-    //on your tracked image!
-
-    //UPDATE:JUNE 18TH, 2013
-    //added 'if' and 'else' statements to prevent
-    //memory errors from writing off the screen (ie. (-25,-25) is not within the window!)
+    if(tipo==1){
 
     circle(frame,Point(x,y),20,Scalar(0,255,0),2);
     if(y-25>0)
@@ -114,18 +89,30 @@ void drawObject(int x, int y,Mat &frame){
     if(x+25<FRAME_WIDTH)
     line(frame,Point(x,y),Point(x+25,y),Scalar(0,255,0),2);
     else line(frame,Point(x,y),Point(FRAME_WIDTH,y),Scalar(0,255,0),2);
+    circle(frame,Point(x,y),2,Scalar(255,0,255),2);
 
-    putText(frame,intToString(x)+","+intToString(y),Point(x,y+30),1,1,Scalar(0,255,0),2);
+    }else if(tipo==2){
+        line(frame,Point(x,y),Point(x-20,y),Scalar(255,0,0),3);
+        line(frame,Point(x,y),Point(x+30,y),Scalar(255,0,0),3);
+        line(frame,Point(x,y-2),Point(x-20,y-2),Scalar(255,0,0),3);
+        line(frame,Point(x,y-2),Point(x+30,y-2),Scalar(255,0,0),3);
+         circle(frame,Point(x+10,y),2,Scalar(255,255,0),2);
+
+        //line(frame,Point(x,y),Point(x,y-25),Scalar(0,255,255),3);
+    }
+
+    //putText(frame,intToString(x)+","+intToString(y),Point(x,y+30),1,1,Scalar(0,255,0),2);
 
 }
+//aplicar morfologia
 void morphOps(Mat &thresh){
 
     //create structuring element that will be used to "dilate" and "erode" image.
     //the element chosen here is a 3px by 3px rectangle
 
-    Mat erodeElement = getStructuringElement( MORPH_ELLIPSE ,Size(5,5));
+    Mat erodeElement = getStructuringElement( MORPH_RECT,Size(3,3));
     //dilate with larger element so make sure object is nicely visible
-    Mat dilateElement = getStructuringElement( MORPH_ELLIPSE,Size(8,8));
+    Mat dilateElement = getStructuringElement( MORPH_RECT,Size(8,8));
 
     erode(thresh,thresh,erodeElement);
     erode(thresh,thresh,erodeElement);
@@ -137,37 +124,44 @@ void morphOps(Mat &thresh){
 
 
 }
-void trackFilteredObject(int &x, int &y, Mat threshold, Mat &cameraFeed){
+void trackFilteredObject(int x, int y, Mat threshold, Mat &cameraFeed, int tipo){
 
     Mat temp;
+     //Point a;
     threshold.copyTo(temp);
-    //these two vectors needed for output of findContours
+
     vector< vector<Point> > contours;
-
-    for(int i= 0; i < contours.size(); i++)
-    {
-        for(int j= 0; j < contours[j].size();j++)
-        {
-            cout << contours[i][j] << endl; //do whatever
-        }
-    }
-
-    //cout >>contours.at( >> endl;
     vector<Vec4i> hierarchy;
+
     //find contours of filtered image using openCV findContours function
     findContours(temp,contours,hierarchy,CV_RETR_CCOMP,CV_CHAIN_APPROX_SIMPLE );
     //use moments method to find our filtered object
     double refArea = 0;
     bool objectFound = false;
     if (hierarchy.size() > 0) {
+
         int numObjects = hierarchy.size();
         //if number of objects greater than MAX_NUM_OBJECTS we have a noisy filter
         if(numObjects<MAX_NUM_OBJECTS){
             for (int index = 0; index >= 0; index = hierarchy[index][0]) {
-                cout << contours[index] << endl;
 
                 Moments moment = moments((cv::Mat)contours[index]);
                 double area = moment.m00;
+                /* teste
+                if(tipo ==1){
+                    std::ostringstream strs;
+                    strs << area;
+                    std::string str = strs.str();
+
+                     putText(cameraFeed,"Area bola: "+str,Point(20,20),1,1,Scalar(255,0,0),1);
+                }else{
+                    std::ostringstream strs;
+                    strs << area;
+                    std::string str = strs.str();
+                     putText(cameraFeed,"Area cesta: "+str,Point(20,50),1,1,Scalar(255,0,0),1);
+                }*/
+
+
 
                 //if the area is less than 20 px by 20px then it is probably just noise
                 //if the area is the same as the 3/2 of the image size, probably just a bad filter
@@ -176,6 +170,14 @@ void trackFilteredObject(int &x, int &y, Mat threshold, Mat &cameraFeed){
                 if(area>MIN_OBJECT_AREA && area<MAX_OBJECT_AREA && area>refArea){
                     x = moment.m10/area;
                     y = moment.m01/area;
+                    if(tipo==1){
+                        xBola= x;
+                        yBola=y;
+
+                    }else if(tipo==2){
+                        xCesta = x;
+                        yCesta = y;
+                    }
 
                     objectFound = true;
                     refArea = area;
@@ -185,76 +187,138 @@ void trackFilteredObject(int &x, int &y, Mat threshold, Mat &cameraFeed){
             }
             //let user know you found an object
             if(objectFound ==true){
-                putText(cameraFeed,"Tracking Object",Point(0,50),2,1,Scalar(0,255,0),2);
+                //putText(cameraFeed,"Tracking Object",Point(0,50),2,1,Scalar(0,255,0),2);
                 //draw object location on screen
-                drawObject(x,y,cameraFeed);}
+                drawObject(x,y,cameraFeed,tipo);}
 
         }else putText(cameraFeed,"TOO MUCH NOISE! ADJUST FILTER",Point(0,50),1,2,Scalar(0,0,255),2);
+
     }
+
+//return a;
+
 }
+
+
+    float distancia(Point p, Point q) {
+        Point diff = p - q;
+        return cv::sqrt(diff.x*diff.x + diff.y*diff.y);
+    }
+
+
+
+
 int main(int argc, char* argv[])
 {
     //some boolean variables for different functionality within this
     //program
-    bool trackObjects = true;
-    bool useMorphOps = true;
-    //Matrix to store each frame of the webcam feed
+    bool trackObjects = false;
+    bool useMorphOps = false;
+    bool calibrationMode = false;
+
+    //matrizes
     Mat cameraFeed;
-    //matrix storage for HSV image
     Mat HSV;
-    //matrix storage for binary threshold image
     Mat threshold;
+    Mat Img;
+
+    if(calibrationMode){
+        //create slider bars for HSV filtering
+        createTrackbars();
+
+    }
+
     //x and y values for the location of the object
-    int x=0, y=0;
-    //create slider bars for HSV filtering
-    createTrackbars();
-    //video capture object to acquire webcam feed
+    int x=0, y=0, xCes=0, yCes=0;
+
+    //video capture
     VideoCapture capture;
-
-
-
-
-
     //open capture object at location zero (default location for webcam)
-    capture.open("video1.avi");
+    capture.open(0);
     //set height and width of capture frame
     capture.set(CV_CAP_PROP_FRAME_WIDTH,FRAME_WIDTH);
     capture.set(CV_CAP_PROP_FRAME_HEIGHT,FRAME_HEIGHT);
-    //start an infinite loop where webcam feed is copied to cameraFeed matrix
-    //all of our operations will be performed within this loop
+
     while(1){
-        //store image to matrix
-        capture.read(cameraFeed);
-        //convert frame from BGR to HSV colorspace
-        cvtColor(cameraFeed,HSV,COLOR_BGR2HSV);
-        //filter HSV image between values and store filtered image to
-        //threshold matrix
-        inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),threshold);
-        //perform morphological operations on thresholded image to eliminate noise
-        //and emphasize the filtered object(s)
-        if(useMorphOps)
-        morphOps(threshold);
-        //pass in thresholded frame to our object tracking function
-        //this function will return the x and y coordinates of the
-        //filtered object
-        if(trackObjects)
-            trackFilteredObject(x,y,threshold,cameraFeed);
 
-        //show frames
-        imshow(windowName2,threshold);
+
+
+        //capture.read(cameraFeed);
+        if (!capture.read(cameraFeed)) {
+            capture.open("teste_4.avi");
+            capture.read(cameraFeed);
+               std::cout << "Fim do video." << std::endl;
+
+        }
+        putText(cameraFeed,"Pontos: "+intToString(pontos),Point(20,40),1,1,Scalar(255,0,0),2);
+
+        cameraFeed.copyTo(Img);
+
+        //modo para calibrar os valores do objeto desejado
+        if(calibrationMode==true){
+
+            cvtColor(cameraFeed,HSV,COLOR_BGR2HSV);
+            inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),threshold);
+            morphOps(threshold);
+            imshow(windowName2,threshold);
+            imshow(windowName1,HSV);
+
+
+
+
+        }else{
+            //detectar a bola
+            cvtColor(cameraFeed,HSV,COLOR_BGR2HSV);
+            //colocar os valores hsv pra bola aki. hsv min / hsv max
+            inRange(HSV,Scalar(139,96,0),Scalar(244,256,256),threshold);
+            morphOps(threshold);
+            trackFilteredObject(x,y,threshold,cameraFeed, 1);
+
+            putText(cameraFeed,"Pos bola: "+intToString(xBola)+","+intToString(yBola),Point(20,60),1,1,Scalar(255,0,0),2);
+
+            //detectar a cesta
+            cvtColor(cameraFeed,HSV,COLOR_BGR2HSV);
+            //colocar os valores hsv pra cesta aki. hsv min / hsv max 83,15,41-250,134,256
+
+            //createTrackbars(); //pra teste
+            inRange(HSV,Scalar(83,15,41),Scalar(168,134,256),threshold);
+            morphOps(threshold);
+            //imshow(windowName2,threshold);// pra teste
+            trackFilteredObject(x,y,threshold,cameraFeed, 2);
+
+            putText(cameraFeed,"Pos Cesta: "+intToString(xCesta)+","+intToString(yCesta),Point(20,80),1,1,Scalar(255,0,0),2);
+
+            Point a(xBola, yBola);
+            Point b(xCesta+10, yCesta);
+            double dt = distancia(a, b);
+
+
+
+            if((xBola!=0&&yBola!=0)&&(xCesta!=0&&yCesta!=0)){
+                if(dt<=35){
+
+                    putText(cameraFeed,"Objetos muito Proximos: ",Point(60,200),1,1,Scalar(255,0,0),2);
+                    if(!contador){
+                       pontos++;
+                       contador = true;
+                    }
+
+                }else{
+                    contador = false;
+                }
+
+            }
+
+
+        }
+
         imshow(windowName,cameraFeed);
-        imshow(windowName1,HSV);
+        imshow(windowName4,Img);
 
 
-        //delay 30ms so that screen can refresh.
-        //image will not appear without this waitKey() command
         waitKey(30);
     }
 
-
-
-
-
-
     return 0;
+
 }
