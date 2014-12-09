@@ -96,7 +96,7 @@ void drawObject(int x, int y,Mat &frame, int tipo){
         line(frame,Point(x,y),Point(x+30,y),Scalar(255,0,0),3);
         line(frame,Point(x,y-2),Point(x-20,y-2),Scalar(255,0,0),3);
         line(frame,Point(x,y-2),Point(x+30,y-2),Scalar(255,0,0),3);
-         circle(frame,Point(x+10,y),2,Scalar(255,255,0),2);
+         circle(frame,Point(x+7,y),2,Scalar(255,255,0),2);
 
         //line(frame,Point(x,y),Point(x,y-25),Scalar(0,255,255),3);
     }
@@ -234,7 +234,7 @@ int main(int argc, char* argv[])
     //video capture
     VideoCapture capture;
     //open capture object at location zero (default location for webcam)
-    capture.open(0);
+    capture.open("video.avi");
     //set height and width of capture frame
     capture.set(CV_CAP_PROP_FRAME_WIDTH,FRAME_WIDTH);
     capture.set(CV_CAP_PROP_FRAME_HEIGHT,FRAME_HEIGHT);
@@ -245,9 +245,11 @@ int main(int argc, char* argv[])
 
         //capture.read(cameraFeed);
         if (!capture.read(cameraFeed)) {
-            capture.open("teste_4.avi");
-            capture.read(cameraFeed);
+            //pro video ficar em loop infinito
+           // capture.open("video.avi");
+           // capture.read(cameraFeed);
                std::cout << "Fim do video." << std::endl;
+               exit(0);
 
         }
         putText(cameraFeed,"Pontos: "+intToString(pontos),Point(20,40),1,1,Scalar(255,0,0),2);
@@ -263,15 +265,16 @@ int main(int argc, char* argv[])
             imshow(windowName2,threshold);
             imshow(windowName1,HSV);
 
-
-
-
         }else{
             //detectar a bola
             cvtColor(cameraFeed,HSV,COLOR_BGR2HSV);
             //colocar os valores hsv pra bola aki. hsv min / hsv max
+            //createTrackbars(); //pra teste
+            //inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),threshold);
             inRange(HSV,Scalar(139,96,0),Scalar(244,256,256),threshold);
             morphOps(threshold);
+            //imshow(windowName2,threshold);// pra teste
+            //imshow(windowName1,HSV);
             trackFilteredObject(x,y,threshold,cameraFeed, 1);
 
             putText(cameraFeed,"Pos bola: "+intToString(xBola)+","+intToString(yBola),Point(20,60),1,1,Scalar(255,0,0),2);
@@ -279,8 +282,8 @@ int main(int argc, char* argv[])
             //detectar a cesta
             cvtColor(cameraFeed,HSV,COLOR_BGR2HSV);
             //colocar os valores hsv pra cesta aki. hsv min / hsv max 83,15,41-250,134,256
-
             //createTrackbars(); //pra teste
+            //inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),threshold);
             inRange(HSV,Scalar(83,15,41),Scalar(168,134,256),threshold);
             morphOps(threshold);
             //imshow(windowName2,threshold);// pra teste
@@ -289,15 +292,15 @@ int main(int argc, char* argv[])
             putText(cameraFeed,"Pos Cesta: "+intToString(xCesta)+","+intToString(yCesta),Point(20,80),1,1,Scalar(255,0,0),2);
 
             Point a(xBola, yBola);
-            Point b(xCesta+10, yCesta);
+            Point b(xCesta+7, yCesta);
             double dt = distancia(a, b);
 
 
 
             if((xBola!=0&&yBola!=0)&&(xCesta!=0&&yCesta!=0)){
-                if(dt<=35){
+                if(dt<=20){
 
-                    putText(cameraFeed,"Objetos muito Proximos: ",Point(60,200),1,1,Scalar(255,0,0),2);
+                    putText(cameraFeed,"Ponto! ",Point(60,200),1,1,Scalar(255,0,0),2);
                     if(!contador){
                        pontos++;
                        contador = true;
